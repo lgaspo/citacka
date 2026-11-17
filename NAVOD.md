@@ -40,7 +40,7 @@ Funguje aj na inom HTTPS hostingu. Bez HTTPS sa Service Worker nespustí.
 - **+ Pridať**: vyber jeden alebo viac ZIP/HTML zo Súborov.
 - Rovnaký názov balíka: na výber máš Nahradiť, Ponechať obe alebo Zrušiť.
 - **⋯** pri balíku: Premenovať, Zmeniť úvodnú stránku, Zmazať.
-- V prehliadači: `‹ Knižnica`, `←` späť v rámci balíka, `⌂` úvodná stránka, `↻` obnoviť.
+- V prehliadači: `‹ Knižnica`, `←` späť v rámci balíka, `⌂` úvodná stránka, `↻` obnoviť, `⤢` celá obrazovka (panel sa skryje, späť tlačidlom `⤡` vpravo dole; nastavenie si appka pamätá).
 - Odkazy `target="_blank"` v rámci balíka sa otvoria v čítačke. Externé odkazy sa otvoria v Safari.
 
 ## 5. Zdieľanie s kolegami

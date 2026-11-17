@@ -52,6 +52,13 @@ footer.info{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
 #viewer .bar button{padding:8px 10px;border-radius:8px;font-size:17px}
 #viewer .bar .title{flex:1;text-align:center;font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #frame{flex:1;width:100%;border:0;background:#fff}
+#viewer.immersive{padding-top:var(--safe-top);background:#000}
+#viewer.immersive .bar{display:none}
+#viewer:fullscreen,#viewer:-webkit-full-screen{padding-top:0}
+#fsExit{display:none;position:fixed;right:12px;bottom:calc(var(--safe-bottom) + 12px);z-index:25;
+  width:44px;height:44px;border-radius:22px;background:rgba(22,40,64,.55);color:#fff;font-size:20px;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#viewer.immersive #fsExit{display:block}
 /* Dialógy */
 #modal{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px}
 #modal.on{display:flex}
@@ -97,8 +104,10 @@ footer.info{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
     <div class="title" id="vTitle"></div>
     <button id="vHome" title="Úvodná stránka">⌂</button>
     <button id="vReload" title="Obnoviť">↻</button>
+    <button id="vFull" title="Celá obrazovka">⤢</button>
   </div>
   <iframe id="frame" title="Obsah balíka"></iframe>
+  <button id="fsExit" title="Ukončiť celú obrazovku" aria-label="Ukončiť celú obrazovku">⤡</button>
 </section>
 
 <div id="modal"><div class="box" id="modalBox"></div></div>
@@ -376,9 +385,11 @@ async function openPkg(id){
   $('#vTitle').textContent = p.name;
   $('#frame').src = 'pkg/' + p.id + '/' + encPath(p.entry);
   $('#viewer').classList.add('on');
+  if (prefImmersive()) setImmersive(true);
   history.pushState({ viewer: true }, '');
 }
 function closeViewer(){
+  setImmersive(false, true);
   $('#viewer').classList.remove('on');
   $('#frame').src = 'about:blank';
   current = null;
@@ -388,6 +399,27 @@ window.addEventListener('popstate', () => { if (current) closeViewer(); });
 $('#vBack').onclick = () => { try { $('#frame').contentWindow.history.back(); } catch (_) {} };
 $('#vHome').onclick = () => { if (current) $('#frame').src = 'pkg/' + current.id + '/' + encPath(current.entry) + '?t=' + Date.now(); };
 $('#vReload').onclick = () => { try { $('#frame').contentWindow.location.reload(); } catch (_) {} };
+
+/* ---------- Celá obrazovka ---------- */
+function prefImmersive(){ try { return localStorage.getItem('citacka.immersive') === '1'; } catch (_) { return false; } }
+function savePref(v){ try { localStorage.setItem('citacka.immersive', v ? '1' : '0'); } catch (_) {} }
+function fsElement(){ return document.fullscreenElement || document.webkitFullscreenElement; }
+function setImmersive(on, keepPref){
+  const v = $('#viewer');
+  v.classList.toggle('immersive', on);
+  if (!keepPref) savePref(on);
+  try {
+    if (on && !fsElement()) {
+      const r = v.requestFullscreen || v.webkitRequestFullscreen;
+      if (r) { const x = r.call(v); if (x && x.catch) x.catch(() => {}); }
+    } else if (!on && fsElement()) {
+      const ex = document.exitFullscreen || document.webkitExitFullscreen;
+      if (ex) { const x = ex.call(document); if (x && x.catch) x.catch(() => {}); }
+    }
+  } catch (_) {}
+}
+$('#vFull').onclick = () => setImmersive(true);
+$('#fsExit').onclick = () => setImmersive(false);
 
 /* ---------- Service Worker ---------- */
 async function swReady(){

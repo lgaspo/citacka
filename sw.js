@@ -1,6 +1,6 @@
 /* HTML Čítačka – Service Worker
    Pri každej zmene súborov čítačky zvýš VERSION, aby si zariadenia stiahli novú verziu. */
-const VERSION = 'citacka-v1';
+const VERSION = 'citacka-v2';
 const SHELL = [
   './',
   './index.html',
