@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HTML Čítačka</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Čítačka">
+<meta name="theme-color" content="#162840">
+<style>
+:root{
+  --bg:#f3f5f8; --card:#fff; --text:#18202b; --muted:#64708a; --line:#e2e7ef;
+  --accent:#2563eb; --accent-text:#fff; --danger:#c62828; --bar:#162840; --bar-text:#fff;
+  --safe-top:env(safe-area-inset-top); --safe-bottom:env(safe-area-inset-bottom);
+}
+@media (prefers-color-scheme:dark){
+  :root{ --bg:#0f1520; --card:#18212f; --text:#e8edf5; --muted:#93a0b6; --line:#273246; --accent:#3b82f6; }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+header.top{position:sticky;top:0;z-index:5;background:var(--bar);color:var(--bar-text);
+  padding:calc(var(--safe-top) + 10px) 16px 10px;display:flex;align-items:center;gap:12px}
+header.top h1{font-size:20px;margin:0;flex:1;font-weight:600}
+.btn{background:var(--accent);color:var(--accent-text);padding:9px 14px;border-radius:10px;font-weight:600}
+.btn.ghost{background:transparent;color:inherit;border:1px solid var(--line)}
+.btn.danger{background:var(--danger);color:#fff}
+main{max-width:900px;margin:0 auto;padding:16px 16px calc(var(--safe-bottom) + 24px)}
+.search{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);
+  background:var(--card);color:var(--text);font:inherit;margin-bottom:14px}
+.list{display:grid;gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;display:flex;align-items:center}
+.card .open{flex:1;text-align:left;padding:14px 16px;min-width:0}
+.card .name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .meta{color:var(--muted);font-size:13px;margin-top:2px}
+.card .more{padding:14px 16px;font-size:22px;color:var(--muted)}
+.empty{text-align:center;color:var(--muted);padding:48px 16px}
+.empty h2{color:var(--text);font-size:18px}
+.empty ol{text-align:left;display:inline-block;margin:8px auto 0;padding-left:20px}
+footer.info{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
+/* Prehliadač */
+#viewer{position:fixed;inset:0;z-index:20;background:var(--bg);display:none;flex-direction:column}
+#viewer.on{display:flex}
+#viewer .bar{background:var(--bar);color:var(--bar-text);display:flex;align-items:center;gap:4px;
+  padding:calc(var(--safe-top) + 4px) 6px 4px}
+#viewer .bar button{padding:8px 10px;border-radius:8px;font-size:17px}
+#viewer .bar .title{flex:1;text-align:center;font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#frame{flex:1;width:100%;border:0;background:#fff}
+/* Dialógy */
+#modal{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px}
+#modal.on{display:flex}
+#modal .box{background:var(--card);color:var(--text);border-radius:16px;width:100%;max-width:420px;padding:18px;max-height:80vh;overflow:auto}
+#modal h3{margin:0 0 8px;font-size:18px}
+#modal p{margin:0 0 12px;color:var(--muted)}
+#modal input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;margin-bottom:12px}
+#modal .actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+#modal .choices{display:grid;gap:6px;margin-bottom:12px}
+#modal .choices button{text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:10px;word-break:break-all}
+#toast{position:fixed;left:50%;bottom:calc(var(--safe-bottom) + 20px);transform:translateX(-50%);
+  background:#222;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:50;display:none;max-width:90vw}
+#toast.on{display:block}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Čítačka</h1>
+  <button class="btn" id="addBtn">+ Pridať</button>
+  <input type="file" id="fileInput" accept=".zip,.html,.htm,application/zip,text/html" multiple hidden>
+</header>
+
+<main>
+  <input class="search" id="search" type="search" placeholder="Hľadať v knižnici" hidden>
+  <div class="list" id="list"></div>
+  <div class="empty" id="empty" hidden>
+    <h2>Knižnica je prázdna</h2>
+    <p>Pridaj ZIP s HTML stránkami alebo samostatný HTML súbor.</p>
+    <ol>
+      <li>Ťukni na <b>+ Pridať</b></li>
+      <li>Vyber súbor v aplikácii Súbory (iCloud, OneDrive, iPad)</li>
+      <li>Balík sa uloží a funguje aj offline</li>
+    </ol>
+  </div>
+  <footer class="info" id="info"></footer>
+</main>
+
+<section id="viewer">
+  <div class="bar">
+    <button id="vClose" title="Knižnica">‹ Knižnica</button>
+    <button id="vBack" title="Späť">←</button>
+    <div class="title" id="vTitle"></div>
+    <button id="vHome" title="Úvodná stránka">⌂</button>
+    <button id="vReload" title="Obnoviť">↻</button>
+  </div>
+  <iframe id="frame" title="Obsah balíka"></iframe>
+</section>
+
+<div id="modal"><div class="box" id="modalBox"></div></div>
+<div id="toast"></div>
+
+<script src="fflate.js"></script>
+<script>
+'use strict';
+/* ---------- Úložisko (IndexedDB) ---------- */
+const DB_NAME = 'citacka', DB_VER = 1;
+let dbp;
+function openDB(){
+  if (dbp) return dbp;
+  dbp = new Promise((resolve, reject) => {
+    const r = indexedDB.open(DB_NAME, DB_VER);
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      if (!db.objectStoreNames.contains('packages')) db.createObjectStore('packages', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('files')) db.createObjectStore('files', { keyPath: 'key' });
+    };
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+  return dbp;
+}
+function txDone(t){ return new Promise((res, rej) => { t.oncomplete = res; t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('Transakcia zrušená')); }); }
+async function allPackages(){
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const q = db.transaction('packages').objectStore('packages').getAll();
+    q.onsuccess = () => res(q.result || []); q.onerror = () => rej(q.error);
+  });
+}
+async function putPackage(meta){
+  const db = await openDB(); const t = db.transaction('packages', 'readwrite');
+  t.objectStore('packages').put(meta); return txDone(t);
+}
+async function deletePackage(id){
+  const db = await openDB(); const t = db.transaction(['packages','files'], 'readwrite');
+  t.objectStore('packages').delete(id);
+  t.objectStore('files').delete(IDBKeyRange.bound(id + '/', id + '/￿'));
+  return txDone(t);
+}
+
+/* ---------- Typy súborov ---------- */
+const MIME = {
+  html:'text/html; charset=utf-8', htm:'text/html; charset=utf-8', css:'text/css; charset=utf-8',
+  js:'text/javascript; charset=utf-8', mjs:'text/javascript; charset=utf-8', json:'application/json; charset=utf-8',
+  map:'application/json', txt:'text/plain; charset=utf-8', csv:'text/csv; charset=utf-8', xml:'application/xml',
+  svg:'image/svg+xml', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', webp:'image/webp',
+  avif:'image/avif', ico:'image/x-icon', bmp:'image/bmp',
+  woff:'font/woff', woff2:'font/woff2', ttf:'font/ttf', otf:'font/otf',
+  pdf:'application/pdf', mp4:'video/mp4', m4v:'video/mp4', webm:'video/webm', mov:'video/quicktime',
+  mp3:'audio/mpeg', m4a:'audio/mp4', wav:'audio/wav', ogg:'audio/ogg', wasm:'application/wasm'
+};
+const mimeOf = p => MIME[(p.split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
+const isHtml = p => /\.html?$/i.test(p);
+
+/* ---------- Pomocné ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtSize = b => b < 1024 ? b + ' B' : b < 1048576 ? (b/1024).toFixed(0) + ' kB' : (b/1048576).toFixed(1) + ' MB';
+const fmtDate = t => new Date(t).toLocaleString('sk-SK', { day:'numeric', month:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const encPath = p => p.split('/').map(encodeURIComponent).join('/');
+let toastT;
+function toast(msg, ms = 2500){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastT); if (ms) toastT = setTimeout(() => t.classList.remove('on'), ms);
+}
+
+/* ---------- Dialógy (bez systémových alertov) ---------- */
+function modal(html, bind){
+  return new Promise(resolve => {
+    const m = $('#modal'), box = $('#modalBox');
+    box.innerHTML = html; m.classList.add('on');
+    const close = v => { m.classList.remove('on'); box.innerHTML = ''; resolve(v); };
+    m.onclick = e => { if (e.target === m) close(null); };
+    bind(box, close);
+  });
+}
+function ask(title, text, buttons){
+  // buttons: [{label, value, cls}]
+  return modal(
+    `<h3>${esc(title)}</h3>${text ? `<p>${esc(text)}</p>` : ''}<div class="actions">${
+      buttons.map((b,i) => `<button class="btn ${b.cls||''}" data-i="${i}">${esc(b.label)}</button>`).join('')}</div>`,
+    (box, close) => box.querySelectorAll('[data-i]').forEach(el => el.onclick = () => close(buttons[el.dataset.i].value))
+  );
+}
+function promptText(title, value){
+  return modal(
+    `<h3>${esc(title)}</h3><input id="mIn" value="${esc(value)}"><div class="actions">
+     <button class="btn ghost" data-c>Zrušiť</button><button class="btn" data-ok>Uložiť</button></div>`,
+    (box, close) => {
+      const inp = box.querySelector('#mIn'); setTimeout(() => inp.focus(), 50);
+      box.querySelector('[data-c]').onclick = () => close(null);
+      box.querySelector('[data-ok]').onclick = () => close(inp.value.trim() || null);
+      inp.onkeydown = e => { if (e.key === 'Enter') close(inp.value.trim() || null); };
+    }
+  );
+}
+function choose(title, text, items){
+  return modal(
+    `<h3>${esc(title)}</h3>${text ? `<p>${esc(text)}</p>` : ''}<div class="choices">${
+      items.map((it,i) => `<button data-i="${i}">${esc(it.label)}</button>`).join('')}</div>
+     <div class="actions"><button class="btn ghost" data-c>Zrušiť</button></div>`,
+    (box, close) => {
+      box.querySelectorAll('[data-i]').forEach(el => el.onclick = () => close(items[el.dataset.i].value));
+      box.querySelector('[data-c]').onclick = () => close(null);
+    }
+  );
+}
+
+/* ---------- Import ---------- */
+function shouldSkip(name){
+  const base = name.split('/').pop();
+  return name.startsWith('__MACOSX/') || name.endsWith('/') || base === '.DS_Store' || base.startsWith('._') || base === 'Thumbs.db' || base === '';
+}
+function pickEntry(paths){
+  const html = paths.filter(isHtml);
+  if (paths.includes('index.html')) return 'index.html';
+  if (paths.includes('index.htm')) return 'index.htm';
+  if (html.length === 1) return html[0];
+  return null; // vyberie používateľ pri prvom otvorení
+}
+async function importFile(file){
+  const isZip = /\.zip$/i.test(file.name) || file.type === 'application/zip' || file.type === 'application/x-zip-compressed';
+  let files = {}; // path -> Uint8Array
+  const buf = new Uint8Array(await file.arrayBuffer());
+  if (isZip) {
+    let raw;
+    try { raw = fflate.unzipSync(buf, { filter: f => !shouldSkip(f.name.replace(/\\/g, '/')) }); }
+    catch (e) { throw new Error('ZIP sa nepodarilo rozbaliť (' + e.message + ')'); }
+    for (const [n, d] of Object.entries(raw)) {
+      const p = n.replace(/\\/g, '/').replace(/^\/+/, '').normalize('NFC');
+      if (!shouldSkip(p)) files[p] = d;
+    }
+    // ak je všetko v jednom spoločnom priečinku, odstráň ho
+    let keys = Object.keys(files);
+    while (keys.length && keys.every(k => k.includes('/'))) {
+      const first = keys[0].split('/')[0];
+      if (!keys.every(k => k.split('/')[0] === first)) break;
+      const nf = {}; for (const k of keys) nf[k.slice(first.length + 1)] = files[k];
+      files = nf; keys = Object.keys(files);
+    }
+  } else if (isHtml(file.name)) {
+    files[file.name.normalize('NFC')] = buf;
+  } else {
+    throw new Error('Nepodporovaný typ súboru: ' + file.name);
+  }
+
+  const paths = Object.keys(files).sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b));
+  const htmlFiles = paths.filter(isHtml);
+  if (!htmlFiles.length) throw new Error('V súbore ' + file.name + ' nie je žiadna HTML stránka.');
+
+  const name = file.name.replace(/\.(zip|html?)$/i, '');
+  const existing = (await allPackages()).find(p => p.name === name);
+  let replaceId = null;
+  if (existing) {
+    const v = await ask('Balík už existuje', `„${name}“ už v knižnici je. Čo s ním?`, [
+      { label: 'Zrušiť', value: 'cancel', cls: 'ghost' },
+      { label: 'Ponechať obe', value: 'both', cls: 'ghost' },
+      { label: 'Nahradiť', value: 'replace' }
+    ]);
+    if (!v || v === 'cancel') return false;
+    if (v === 'replace') replaceId = existing.id;
+  }
+
+  const id = newId();
+  let size = 0;
+  const db = await openDB();
+  const t = db.transaction('files', 'readwrite');
+  const st = t.objectStore('files');
+  for (const p of paths) {
+    const u8 = files[p];
+    const ab = (u8.byteOffset === 0 && u8.byteLength === u8.buffer.byteLength) ? u8.buffer : u8.slice().buffer;
+    size += u8.byteLength;
+    st.put({ key: id + '/' + p, data: ab, type: mimeOf(p) });
+  }
+  await txDone(t);
+
+  let finalName = name;
+  if (existing && !replaceId) {
+    const names = new Set((await allPackages()).map(p => p.name));
+    let n = 2; while (names.has(`${name} (${n})`)) n++; finalName = `${name} (${n})`;
+  }
+  await putPackage({
+    id, name: finalName, added: Date.now(), size, files: paths, htmlFiles,
+    entry: pickEntry(paths), source: file.name,
+    order: existing && replaceId ? existing.order : Date.now()
+  });
+  if (replaceId) await deletePackage(replaceId);
+  return true;
+}
+
+$('#addBtn').onclick = () => $('#fileInput').click();
+$('#fileInput').onchange = async e => {
+  const list = [...e.target.files]; e.target.value = '';
+  if (!list.length) return;
+  let ok = 0;
+  for (const f of list) {
+    toast('Spracúvam ' + f.name + ' …', 0);
+    try { if (await importFile(f)) ok++; }
+    catch (err) { await ask('Chyba pri pridávaní', err.message || String(err), [{ label: 'OK', value: 1 }]); }
+  }
+  toast(ok ? `Pridané: ${ok}` : 'Nič nebolo pridané');
+  requestPersist();
+  render();
+};
+
+/* ---------- Knižnica ---------- */
+async function render(){
+  const pkgs = (await allPackages()).sort((a, b) => b.added - a.added);
+  const q = $('#search').value.trim().toLowerCase();
+  const shown = q ? pkgs.filter(p => p.name.toLowerCase().includes(q)) : pkgs;
+  $('#search').hidden = pkgs.length < 6;
+  $('#empty').hidden = pkgs.length > 0;
+  $('#list').innerHTML = shown.map(p => `
+    <div class="card">
+      <button class="open" data-open="${p.id}">
+        <div class="name">${esc(p.name)}</div>
+        <div class="meta">${fmtDate(p.added)} · ${fmtSize(p.size)} · ${p.htmlFiles.length} ${p.htmlFiles.length === 1 ? 'stránka' : p.htmlFiles.length < 5 ? 'stránky' : 'stránok'}</div>
+      </button>
+      <button class="more" data-more="${p.id}" aria-label="Možnosti">⋯</button>
+    </div>`).join('');
+  $('#list').querySelectorAll('[data-open]').forEach(el => el.onclick = () => openPkg(el.dataset.open));
+  $('#list').querySelectorAll('[data-more]').forEach(el => el.onclick = () => pkgMenu(el.dataset.more));
+  showInfo();
+}
+$('#search').oninput = render;
+
+async function getPkg(id){ return (await allPackages()).find(p => p.id === id); }
+
+async function pkgMenu(id){
+  const p = await getPkg(id); if (!p) return;
+  const a = await choose(p.name, `Pridané ${fmtDate(p.added)}, zdroj: ${p.source}`, [
+    { label: 'Otvoriť', value: 'open' },
+    { label: 'Premenovať', value: 'rename' },
+    { label: 'Zmeniť úvodnú stránku' + (p.entry ? ` (teraz: ${p.entry})` : ''), value: 'entry' },
+    { label: 'Zmazať z knižnice', value: 'delete' }
+  ]);
+  if (a === 'open') openPkg(id);
+  if (a === 'rename') {
+    const n = await promptText('Nový názov', p.name);
+    if (n) { p.name = n; await putPackage(p); render(); }
+  }
+  if (a === 'entry') {
+    const e = await chooseEntry(p);
+    if (e) { p.entry = e; await putPackage(p); toast('Úvodná stránka: ' + e); }
+  }
+  if (a === 'delete') {
+    const ok = await ask('Zmazať balík?', `„${p.name}“ sa odstráni z tohto zariadenia. Pôvodný ZIP v Súboroch zostane.`, [
+      { label: 'Zrušiť', value: false, cls: 'ghost' }, { label: 'Zmazať', value: true, cls: 'danger' }
+    ]);
+    if (ok) { await deletePackage(id); toast('Zmazané'); render(); }
+  }
+}
+function chooseEntry(p){
+  return choose('Úvodná stránka', 'Ktorá stránka sa má otvárať ako prvá?', p.htmlFiles.map(h => ({ label: h, value: h })));
+}
+
+/* ---------- Prehliadač ---------- */
+let current = null;
+async function openPkg(id){
+  const p = await getPkg(id); if (!p) return;
+  if (!p.entry) {
+    const e = await chooseEntry(p); if (!e) return;
+    p.entry = e; await putPackage(p);
+  }
+  if (!(await swReady())) {
+    await ask('Čítačka sa ešte pripravuje', 'Obnov stránku a skús to znova.', [{ label: 'OK', value: 1 }]);
+    return;
+  }
+  current = p;
+  $('#vTitle').textContent = p.name;
+  $('#frame').src = 'pkg/' + p.id + '/' + encPath(p.entry);
+  $('#viewer').classList.add('on');
+  history.pushState({ viewer: true }, '');
+}
+function closeViewer(){
+  $('#viewer').classList.remove('on');
+  $('#frame').src = 'about:blank';
+  current = null;
+}
+$('#vClose').onclick = () => { if (history.state && history.state.viewer) history.back(); else closeViewer(); };
+window.addEventListener('popstate', () => { if (current) closeViewer(); });
+$('#vBack').onclick = () => { try { $('#frame').contentWindow.history.back(); } catch (_) {} };
+$('#vHome').onclick = () => { if (current) $('#frame').src = 'pkg/' + current.id + '/' + encPath(current.entry) + '?t=' + Date.now(); };
+$('#vReload').onclick = () => { try { $('#frame').contentWindow.location.reload(); } catch (_) {} };
+
+/* ---------- Service Worker ---------- */
+async function swReady(){
+  if (!('serviceWorker' in navigator)) return false;
+  if (navigator.serviceWorker.controller) return true;
+  await navigator.serviceWorker.ready;
+  if (navigator.serviceWorker.controller) return true;
+  return new Promise(res => {
+    const t = setTimeout(() => res(!!navigator.serviceWorker.controller), 3000);
+    navigator.serviceWorker.addEventListener('controllerchange', () => { clearTimeout(t); res(true); }, { once: true });
+  });
+}
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js', { scope: './' }).catch(e => toast('Service Worker: ' + e.message, 5000));
+}
+
+/* ---------- Úložisko: trvalosť a využitie ---------- */
+async function requestPersist(){
+  try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (_) {}
+  showInfo();
+}
+async function showInfo(){
+  const parts = [];
+  try {
+    if (navigator.storage && navigator.storage.estimate) {
+      const e = await navigator.storage.estimate();
+      if (e.usage != null) parts.push('Využité ' + fmtSize(e.usage) + (e.quota ? ' z ' + fmtSize(e.quota) : ''));
+    }
+    if (navigator.storage && navigator.storage.persisted) parts.push((await navigator.storage.persisted()) ? 'úložisko trvalé' : 'úložisko bežné');
+  } catch (_) {}
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (!standalone) parts.push('Tip: Zdieľať → Pridať na plochu');
+  $('#info').textContent = parts.join(' · ');
+}
+
+render();
+</script>
+</body>
+</html>
